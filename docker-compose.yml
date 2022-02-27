@@ -1,0 +1,71 @@
+version: '3.7'
+## keycloak service authentication demo dockerized
+volumes:
+  mysql_data:
+    driver: local
+services:
+  mysql-db:
+    image: "mysql:5.7"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "33306:3306"
+    restart: always
+    environment:
+      #MYSQL_ROOT_PASSWORD: 'foo'
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: 'keycloak'
+      MYSQL_USER: 'admin'
+      MYSQL_PASSWORD: 'keycloak'
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "root"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    command:
+      - "start-dev"
+    container_name: keycloak_server
+    hostname: keycloak
+    environment:
+      # https://www.keycloak.org/server/all-config
+      #DB_VENDOR: MYSQL
+      #DB_ADDR: mysql-db
+      #DB_DATABASE: keycloak
+      #DB_USER: admin
+      #DB_PASSWORD: keycloak
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: keycloak
+      KC_DB_URL: "jdbc:mysql://mysql-db:3306/keycloak"
+      KC_DB_USERNAME: "admin"
+      KC_DB_PASSWORD: "keycloak"
+      KC_DB: "mysql"
+      #KC_HTTP_RELATIVE_PATH: "/auth"
+      #KC_HOSTNAME: "keycloak"
+      #KC_HOSTNAME_STRICT: "false"
+      #KC_PROXY: "passthrough"
+      #KC_HTTP_HOST: "localhost"
+      #KC_HTTP_PORT: "8080"
+      #KC_HTTP_ENABLED: "true"
+      JDBC_PARAMS: "serverTimezone=UTC"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+  dev:
+    build:
+      context: .
+      args:
+        VERSION: local-dev
+    container_name: keycloak_demo_service
+    environment:
+      - HTTP_VERSION=HTTP_2_0 # If Http2.0 is not support it, then switch to HTTP_1_1
+    #restart: unless-stopped
+    ports:
+      - "8082:8082"
+    depends_on:
+      - keycloak
+        #condition: service_completed_successfully
